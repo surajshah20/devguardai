@@ -1,0 +1,24 @@
+{
+  "name": "devguard-ai",
+  "version": "0.1.0",
+  "description": "AI-powered GitHub Code Review & Bug Detection Agent",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "start": "npm run start --workspace=apps/api",
+    "dev": "npm run dev --workspace=apps/api",
+    "test": "npm run test --workspace=apps/api",
+    "inspect": "node apps/api/bin/inspect-repo.js"
+  },
+  "keywords": [
+    "code-review",
+    "security",
+    "static-analysis",
+    "ai-agent",
+    "github"
+  ],
+  "author": "",
+  "license": "MIT"
+}
