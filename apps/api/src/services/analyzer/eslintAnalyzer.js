@@ -81,3 +81,4 @@ export function analyzeWithESLint(files = [], config = DEFAULT_ESLINT_CONFIG) {
 
   return findings;
 }
+

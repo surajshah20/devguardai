@@ -136,3 +136,4 @@ export function detectProjectType(files = []) {
     fileCount: files.length,
   };
 }
+

@@ -72,3 +72,4 @@ describe('Finding Deduplicator Service', () => {
     assert.equal(deduplicated[1].severity, 'low');
   });
 });
+

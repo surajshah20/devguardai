@@ -104,3 +104,4 @@ export const SECURITY_RULES = [
     suggestedFix: 'Use crypto.randomBytes() or crypto.getRandomValues() for cryptographically secure random values.',
   },
 ];
+

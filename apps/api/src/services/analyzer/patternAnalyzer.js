@@ -54,3 +54,4 @@ export function analyzePatterns(files = [], options = {}) {
 
   return findings;
 }
+

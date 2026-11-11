@@ -87,3 +87,4 @@ describe('Pattern Analyzer Service', () => {
     assert.equal(findings.length, 0);
   });
 });
+

@@ -77,3 +77,4 @@ export function deduplicateFindings(findings = []) {
     return a.startLine - b.startLine;
   });
 }
+

@@ -2,6 +2,10 @@
 
 import { GitHubClient } from '../src/services/github/githubClient.js';
 import { runStaticAnalysis } from '../src/services/analyzer/analyzerOrchestrator.js';
+import { runAIReview } from '../src/services/ai/aiReviewer.js';
+import { deduplicateFindings } from '../src/services/analyzer/findingDeduplicator.js';
+import { generateMarkdownReport } from '../src/services/reports/markdownReportGenerator.js';
+import { saveReportToFile } from '../src/services/reports/reportWriter.js';
 import { env } from '../src/config/env.js';
 
 const target = process.argv[2];
@@ -25,54 +29,95 @@ const SEVERITY_COLORS = {
 };
 
 async function main() {
-  console.log(`\n🛡️  [DevGuard AI] Starting deterministic static analysis on ${owner}/${repo}...`);
+  console.log(`\n🛡️  [DevGuard AI] Reviewing repository: ${owner}/${repo}...`);
   if (branch) console.log(`🌿 Branch: ${branch}`);
 
-  const client = new GitHubClient({
-    token: env.GITHUB_TOKEN,
-  });
+  const client = new GitHubClient({ token: env.GITHUB_TOKEN });
+  const start = Date.now();
 
   try {
-    const fetchStart = Date.now();
-    const snapshot = await client.fetchRepositoryFiles({
-      owner,
-      repo,
-      branch,
+    // 1. Fetch files
+    console.log('📥 Fetching repository tree and permitted text files...');
+    const snapshot = await client.fetchRepositoryFiles({ owner, repo, branch });
+    console.log(`✅ Loaded ${snapshot.analyzedFilesCount} source files (Commit: ${snapshot.commitSha.slice(0, 7)})`);
+
+    // 2. Deterministic analysis
+    console.log('⚙️  Running static analysis & security pattern detectors...');
+    const staticResult = await runStaticAnalysis(snapshot.files);
+    console.log(`🔍 Static analysis produced ${staticResult.findings.length} findings.`);
+
+    // 3. AI review
+    console.log(`🧠 Invoking AI review (${env.AI_PROVIDER.toUpperCase()} adapter)...`);
+    const aiResult = await runAIReview({
+      files: snapshot.files,
+      findings: staticResult.findings,
+      project: staticResult.project,
     });
-    console.log(`📥 Downloaded & vetted ${snapshot.analyzedFilesCount} source files in ${Date.now() - fetchStart}ms`);
-
-    const analysis = await runStaticAnalysis(snapshot.files);
-
-    console.log('\n======================================================');
-    console.log(`Repository:    ${snapshot.repository.fullName}`);
-    console.log(`Commit SHA:    ${snapshot.commitSha}`);
-    console.log(`Ecosystem:     ${analysis.project.ecosystem.toUpperCase()} (${analysis.project.languages.join(', ') || 'unknown'})`);
-    console.log(`Total Findings: ${analysis.summary.total}`);
-    console.log(`Breakdown:     ${SEVERITY_COLORS.critical}Critical: ${analysis.summary.critical}${SEVERITY_COLORS.reset} | ${SEVERITY_COLORS.high}High: ${analysis.summary.high}${SEVERITY_COLORS.reset} | ${SEVERITY_COLORS.medium}Medium: ${analysis.summary.medium}${SEVERITY_COLORS.reset} | ${SEVERITY_COLORS.low}Low: ${analysis.summary.low}${SEVERITY_COLORS.reset}`);
-    console.log('======================================================\n');
-
-    if (analysis.findings.length === 0) {
-      console.log('✨ No static analysis issues or security anti-patterns detected!\n');
-      return;
+    if (aiResult.error) {
+      console.log(`⚠️  AI Notice: ${aiResult.error}`);
+    } else {
+      console.log(`🤖 AI Review generated ${aiResult.aiFindings.length} suggested findings.`);
     }
 
-    console.log('📋 Detected Findings:');
-    for (const [index, f] of analysis.findings.entries()) {
+    // 4. Merge & Deduplicate
+    const finalFindings = deduplicateFindings([...staticResult.findings, ...(aiResult.aiFindings || [])]);
+
+    const summary = {
+      total: finalFindings.length,
+      critical: 0,
+      high: 0,
+      medium: 0,
+      low: 0,
+      info: 0,
+    };
+    for (const f of finalFindings) {
+      if (summary[f.severity] !== undefined) summary[f.severity]++;
+    }
+
+    // 5. Generate and save Markdown Report
+    const markdownReport = generateMarkdownReport({
+      repository: snapshot.repository,
+      commitSha: snapshot.commitSha,
+      targetRef: snapshot.targetRef,
+      project: staticResult.project,
+      summary,
+      findings: finalFindings,
+      aiError: aiResult.error,
+    });
+
+    const reportPath = await saveReportToFile({
+      owner,
+      repo,
+      commitSha: snapshot.commitSha,
+      content: markdownReport,
+      extension: 'md',
+    });
+
+    console.log('\n======================================================');
+    console.log(`Repository:     ${snapshot.repository.fullName}`);
+    console.log(`Commit SHA:     ${snapshot.commitSha}`);
+    console.log(`Total Findings: ${summary.total}`);
+    console.log(`Breakdown:      ${SEVERITY_COLORS.critical}Critical: ${summary.critical}${SEVERITY_COLORS.reset} | ${SEVERITY_COLORS.high}High: ${summary.high}${SEVERITY_COLORS.reset} | ${SEVERITY_COLORS.medium}Medium: ${summary.medium}${SEVERITY_COLORS.reset} | ${SEVERITY_COLORS.low}Low: ${summary.low}${SEVERITY_COLORS.reset}`);
+    console.log('======================================================\n');
+
+    for (const [index, f] of finalFindings.entries()) {
       const color = SEVERITY_COLORS[f.severity] || '';
-      console.log(`\n${index + 1}. [${color}${f.severity.toUpperCase()}${SEVERITY_COLORS.reset}] ${f.title}`);
-      console.log(`   Source:      ${f.source} (${f.ruleId})`);
+      console.log(`${index + 1}. [${color}${f.severity.toUpperCase()}${SEVERITY_COLORS.reset}] ${f.title}`);
+      console.log(`   Source:      ${f.source} (${f.ruleId}) | Status: ${f.verificationStatus}`);
       console.log(`   Location:    ${f.filePath}:${f.startLine}`);
       console.log(`   Evidence:    "${f.evidence}"`);
       console.log(`   Explanation: ${f.explanation}`);
       if (f.suggestedFix) {
-        console.log(`   Suggested Fix: ${f.suggestedFix}`);
+        console.log(`   Fix:         ${f.suggestedFix}`);
       }
+      console.log('');
     }
 
-    console.log('\n======================================================');
-    console.log(`✨ Analysis completed in ${analysis.durationMs}ms.\n`);
+    console.log('======================================================');
+    console.log(`📄 Markdown report saved to: ${reportPath}`);
+    console.log(`✨ Total review duration: ${Date.now() - start}ms.\n`);
   } catch (err) {
-    console.error(`\n❌ Error during analysis: ${err.message}`);
+    console.error(`\n❌ Error during review: ${err.message}`);
     process.exit(1);
   }
 }

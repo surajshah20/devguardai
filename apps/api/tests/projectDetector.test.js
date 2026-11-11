@@ -50,3 +50,4 @@ describe('Project Detector Service', () => {
     assert.equal(result.packageManager, 'go');
   });
 });
+
