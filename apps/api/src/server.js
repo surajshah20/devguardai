@@ -15,3 +15,4 @@ process.on('SIGTERM', () => {
     console.log('[DevGuard API] Process terminated.');
   });
 });
+

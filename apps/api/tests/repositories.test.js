@@ -23,3 +23,4 @@ describe('Repository Router Endpoints', () => {
     assert.ok(capturedError, 'Dispatched error to next() on network or not-found');
   });
 });
+

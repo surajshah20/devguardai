@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import { healthRouter } from './routes/health.js';
 import { repositoryRouter } from './routes/repositories.js';
+import { reviewRouter } from './routes/reviews.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 export function createApp() {
@@ -16,6 +17,7 @@ export function createApp() {
   // API Routes
   app.use('/api', healthRouter);
   app.use('/api', repositoryRouter);
+  app.use('/api', reviewRouter);
 
   // 404 & Error Handlers
   app.use(notFoundHandler);

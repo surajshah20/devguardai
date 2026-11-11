@@ -110,3 +110,4 @@ export function shouldAnalyzeFile(filePath, size = 0, limits = DEFAULT_LIMITS) {
 
   return { shouldAnalyze: true };
 }
+

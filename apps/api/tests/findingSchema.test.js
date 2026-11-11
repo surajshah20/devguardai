@@ -44,3 +44,4 @@ describe('Finding Schema Validation', () => {
     assert.ok(parsed.error.issues.some((i) => i.path.includes('confidence')));
   });
 });
+

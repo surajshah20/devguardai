@@ -34,3 +34,4 @@ describe('File Filter Service', () => {
     assert.equal(shouldAnalyzeFile('src/small.js', 512, limits).shouldAnalyze, true);
   });
 });
+

@@ -36,3 +36,4 @@ describe('Secret Redactor Service', () => {
     assert.equal(redactSecrets(raw), raw);
   });
 });
+

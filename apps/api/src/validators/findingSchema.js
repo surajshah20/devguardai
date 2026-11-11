@@ -45,3 +45,4 @@ export const FindingSchema = z.object({
 });
 
 export const FindingListSchema = z.array(FindingSchema);
+

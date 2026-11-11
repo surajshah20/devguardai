@@ -10,7 +10,8 @@
     "start": "npm run start --workspace=apps/api",
     "dev": "npm run dev --workspace=apps/api",
     "test": "npm run test --workspace=apps/api",
-    "inspect": "node apps/api/bin/inspect-repo.js"
+    "inspect": "node apps/api/bin/inspect-repo.js",
+    "analyze": "node apps/api/bin/analyze-repo.js"
   },
   "keywords": [
     "code-review",
