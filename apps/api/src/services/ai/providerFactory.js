@@ -31,3 +31,4 @@ export function getAIProvider(overrides = {}) {
 
   throw new Error(`Unsupported AI provider: ${providerType}. Must be 'gemini' or 'ollama'.`);
 }
+

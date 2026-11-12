@@ -26,3 +26,4 @@ describe('AI Reviewer Service', () => {
     assert.deepEqual(result.aiFindings, []);
   });
 });
+

@@ -21,3 +21,4 @@ export class BaseAIProvider {
     throw new Error('generateCompletion() must be implemented by subclass');
   }
 }
+

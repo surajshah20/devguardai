@@ -9,6 +9,7 @@
   "scripts": {
     "start": "npm run start --workspace=apps/api",
     "dev": "npm run dev --workspace=apps/api",
+    "web": "npm run dev --workspace=apps/web",
     "test": "npm run test --workspace=apps/api",
     "inspect": "node apps/api/bin/inspect-repo.js",
     "analyze": "node apps/api/bin/analyze-repo.js"

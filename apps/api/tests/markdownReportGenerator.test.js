@@ -49,3 +49,4 @@ describe('Markdown Report Generator Service', () => {
     assert.ok(report.includes('No issues detected'));
   });
 });
+

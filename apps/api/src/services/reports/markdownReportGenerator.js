@@ -111,3 +111,4 @@ export function generateMarkdownReport({
 
   return lines.join('\n');
 }
+
