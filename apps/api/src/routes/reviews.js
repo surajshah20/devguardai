@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { GitHubClient } from '../services/github/githubClient.js';
+import { DEFAULT_LIMITS } from '../services/github/fileFilter.js';
 import { runStaticAnalysis } from '../services/analyzer/analyzerOrchestrator.js';
 import { runAIReview } from '../services/ai/aiReviewer.js';
 import { deduplicateFindings } from '../services/analyzer/findingDeduplicator.js';
+import { generatePatchForFinding, generateUnifiedPatch } from '../services/analyzer/patchGenerator.js';
 import { generateMarkdownReport } from '../services/reports/markdownReportGenerator.js';
 import { generateJsonReport } from '../services/reports/jsonReportGenerator.js';
 import { saveReportToFile } from '../services/reports/reportWriter.js';
@@ -26,7 +28,7 @@ function getClient(req) {
  */
 reviewRouter.post('/reviews', async (req, res, next) => {
   try {
-    const { owner, repo, branch, enableAI = true } = req.body || {};
+    const { owner, repo, branch, enableAI = true, excludeTests = false } = req.body || {};
 
     if (!owner || !repo) {
       return res.status(400).json({
@@ -41,7 +43,15 @@ reviewRouter.post('/reviews', async (req, res, next) => {
     const startTime = Date.now();
 
     // 1. Fetch vetted repository snapshot
-    const repoSnapshot = await client.fetchRepositoryFiles({ owner, repo, branch });
+    const repoSnapshot = await client.fetchRepositoryFiles({
+      owner,
+      repo,
+      branch,
+      limits: {
+        ...DEFAULT_LIMITS,
+        excludeTests: Boolean(excludeTests),
+      },
+    });
 
     // 2. Run deterministic static analysis
     const staticResult = await runStaticAnalysis(repoSnapshot.files);
@@ -62,6 +72,11 @@ reviewRouter.post('/reviews', async (req, res, next) => {
 
     // 4. Merge findings & deduplicate
     const allFindings = deduplicateFindings([...staticResult.findings, ...aiFindings]);
+
+    // Attach patch snippets to findings
+    for (const f of allFindings) {
+      f.patch = generatePatchForFinding(f);
+    }
 
     // 5. Compute summary metrics
     const summary = {
@@ -117,6 +132,7 @@ reviewRouter.post('/reviews', async (req, res, next) => {
       reportPath,
       durationMs: totalDuration,
       aiError,
+      excludeTests,
     });
 
     res.status(201).json(stored);
@@ -218,6 +234,30 @@ reviewRouter.get('/reviews/:reviewId/report', async (req, res, next) => {
     res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="devguard-report-${review.id}.md"`);
     res.send(review.markdownReport);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/reviews/:reviewId/patch
+ * Generates and downloads a unified .patch file for all actionable findings.
+ */
+reviewRouter.get('/reviews/:reviewId/patch', async (req, res, next) => {
+  try {
+    const { reviewId } = req.params;
+    const review = await reviewStore.getReviewById(reviewId);
+
+    if (!review) {
+      return res.status(404).json({
+        error: { message: `Review not found: ${reviewId}`, status: 404 },
+      });
+    }
+
+    const patchContent = generateUnifiedPatch(review.findings, review.commitSha);
+    res.setHeader('Content-Type', 'text/x-diff; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="devguard-fix-${(review.commitSha || 'head').slice(0, 7)}.patch"`);
+    res.send(patchContent);
   } catch (err) {
     next(err);
   }

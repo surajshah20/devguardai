@@ -64,14 +64,15 @@ export function detectProjectType(files = []) {
     if (count > 0) languages.add(lang);
   }
 
-  // 1. Detect Node.js ecosystem & frameworks from package.json
-  const packageJsonContent = fileMap.get('package.json');
-  if (packageJsonContent) {
+  // 1. Detect Node.js ecosystem & frameworks from any package.json (root or nested monorepo)
+  const packageJsonEntries = Array.from(fileMap.entries()).filter(([fp]) => fp.endsWith('package.json'));
+  for (const [, content] of packageJsonEntries) {
+    if (!content) continue;
     ecosystem = 'node';
-    packageManager = 'npm';
+    if (packageManager === 'unknown') packageManager = 'npm';
 
     try {
-      const pkg = JSON.parse(packageJsonContent);
+      const pkg = JSON.parse(content);
       const allDeps = {
         ...(pkg.dependencies || {}),
         ...(pkg.devDependencies || {}),
@@ -92,8 +93,13 @@ export function detectProjectType(files = []) {
         else if (pkg.packageManager.startsWith('npm')) packageManager = 'npm';
       }
     } catch {
-      // Malformed package.json, continue with defaults
+      // Malformed package.json, continue
     }
+  }
+
+  // Fallback: if JS/TS files dominate, mark ecosystem as node
+  if (ecosystem === 'generic' && (langCounts.javascript > 0 || langCounts.typescript > 0)) {
+    ecosystem = 'node';
   }
 
   // Detect lockfiles if packageManager is still default

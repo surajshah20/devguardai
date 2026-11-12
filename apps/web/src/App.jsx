@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar.jsx';
-import { ReviewForm } from './components/ReviewForm.jsx';
-import { MetricsCards } from './components/MetricsCards.jsx';
-import { FindingCard } from './components/FindingCard.jsx';
-import { HistorySidebar } from './components/HistorySidebar.jsx';
-import { Filter, Download, Copy, Check, FileText, Search, ShieldCheck } from 'lucide-react';
+import { ReviewWorkspaceBar } from './components/ReviewWorkspaceBar.jsx';
+import { OverviewMetrics } from './components/OverviewMetrics.jsx';
+import { FindingsExplorer } from './components/FindingsExplorer.jsx';
+import { HistoryPanel } from './components/HistoryPanel.jsx';
+import { Shield, AlertCircle, Terminal } from 'lucide-react';
 
 export function App() {
   const [reviews, setReviews] = useState([]);
@@ -12,13 +12,7 @@ export function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
 
-  // Filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSeverity, setSelectedSeverity] = useState('all');
-  const [selectedSource, setSelectedSource] = useState('all');
-  const [copiedReport, setCopiedReport] = useState(false);
-
-  // Fetch recent reviews on initial mount
+  // Initial reviews fetch
   useEffect(() => {
     fetchReviews();
   }, []);
@@ -28,17 +22,18 @@ export function App() {
       const res = await fetch('/api/reviews');
       if (res.ok) {
         const data = await res.json();
-        setReviews(data.reviews || []);
-        if (!activeReview && (data.reviews || []).length > 0) {
-          setActiveReview(data.reviews[0]);
+        const list = data.reviews || [];
+        setReviews(list);
+        if (!activeReview && list.length > 0) {
+          setActiveReview(list[0]);
         }
       }
     } catch {
-      // API not yet reachable
+      // Offline / connecting
     }
   };
 
-  const handleStartReview = async ({ owner, repo, branch, enableAI }) => {
+  const handleStartReview = async ({ owner, repo, branch, enableAI, excludeTests }) => {
     setIsLoading(true);
     setErrorMessage(null);
 
@@ -46,7 +41,7 @@ export function App() {
       const res = await fetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ owner, repo, branch, enableAI }),
+        body: JSON.stringify({ owner, repo, branch, enableAI, excludeTests }),
       });
 
       const data = await res.json();
@@ -81,241 +76,86 @@ export function App() {
     }
   };
 
-  const handleCopyReport = () => {
-    if (!activeReview?.markdownReport) return;
-    navigator.clipboard.writeText(activeReview.markdownReport);
-    setCopiedReport(true);
-    setTimeout(() => setCopiedReport(false), 2000);
-  };
-
-  // Filter findings based on active controls
-  const filteredFindings = (activeReview?.findings || []).filter((f) => {
-    const matchesSeverity = selectedSeverity === 'all' || f.severity === selectedSeverity;
-    const matchesSource = selectedSource === 'all' || f.source === selectedSource;
-    const matchesSearch =
-      !searchTerm ||
-      f.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      f.filePath.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      f.ruleId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (f.explanation || '').toLowerCase().includes(searchTerm.toLowerCase());
-
-    return matchesSeverity && matchesSource && matchesSearch;
-  });
-
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Navbar />
 
-      <main style={{ maxWidth: '1280px', width: '100%', margin: '0 auto', padding: '24px 20px', flex: 1 }}>
-        {/* Error Banner */}
+      <main style={{
+        maxWidth: '1240px',
+        width: '100%',
+        margin: '0 auto',
+        padding: '24px 20px',
+        flex: 1,
+      }}>
+        {/* Error Alert */}
         {errorMessage && (
           <div style={{
-            background: 'var(--critical-bg)',
-            border: '1px solid rgba(239, 68, 68, 0.4)',
+            background: 'var(--bg-critical)',
+            border: '1px solid var(--border-critical)',
             color: '#fca5a5',
-            padding: '14px 18px',
-            borderRadius: 'var(--radius-md)',
-            marginBottom: '20px',
-            fontSize: '0.88rem',
+            padding: '10px 14px',
+            borderRadius: 'var(--radius-sm)',
+            marginBottom: '16px',
+            fontSize: '12px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            gap: '8px',
           }}>
-            <span><strong>Review Error:</strong> {errorMessage}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlertCircle size={14} color="var(--color-critical)" />
+              <span>{errorMessage}</span>
+            </div>
             <button
               onClick={() => setErrorMessage(null)}
-              style={{ background: 'transparent', border: 'none', color: '#ffffff', cursor: 'pointer', fontSize: '1rem' }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
             >
               ✕
             </button>
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: '24px', alignItems: 'start' }}>
-          {/* Main Column */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {/* Input Form */}
-            <ReviewForm onStartReview={handleStartReview} isLoading={isLoading} />
+        {/* Dashboard Grid Layout */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) 280px',
+          gap: '20px',
+          alignItems: 'start',
+        }}>
+          {/* Main Workspace Column */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Command & Input Bar */}
+            <ReviewWorkspaceBar onStartReview={handleStartReview} isLoading={isLoading} />
 
-            {/* Active Review Presentation */}
+            {/* Active Analysis View */}
             {activeReview ? (
-              <div>
-                <MetricsCards review={activeReview} />
-
-                {/* Filter and Actions Bar */}
-                <div style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '14px 16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
-                  gap: '12px',
-                  marginBottom: '16px',
-                }}>
-                  {/* Left: Search & Filter Controls */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <div style={{ position: 'relative', width: '220px' }}>
-                      <Search size={14} color="var(--text-dim)" style={{ position: 'absolute', left: '10px', top: '9px' }} />
-                      <input
-                        type="text"
-                        placeholder="Search findings..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '6px 10px 6px 30px',
-                          background: 'var(--bg-primary)',
-                          border: '1px solid var(--border-subtle)',
-                          borderRadius: 'var(--radius-sm)',
-                          color: '#ffffff',
-                          fontSize: '0.82rem',
-                          outline: 'none',
-                        }}
-                      />
-                    </div>
-
-                    <select
-                      value={selectedSeverity}
-                      onChange={(e) => setSelectedSeverity(e.target.value)}
-                      style={{
-                        padding: '6px 10px',
-                        background: 'var(--bg-primary)',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: 'var(--radius-sm)',
-                        color: 'var(--text-main)',
-                        fontSize: '0.82rem',
-                        outline: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <option value="all">All Severities</option>
-                      <option value="critical">Critical</option>
-                      <option value="high">High</option>
-                      <option value="medium">Medium</option>
-                      <option value="low">Low</option>
-                    </select>
-
-                    <select
-                      value={selectedSource}
-                      onChange={(e) => setSelectedSource(e.target.value)}
-                      style={{
-                        padding: '6px 10px',
-                        background: 'var(--bg-primary)',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: 'var(--radius-sm)',
-                        color: 'var(--text-main)',
-                        fontSize: '0.82rem',
-                        outline: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <option value="all">All Sources</option>
-                      <option value="semgrep">Semgrep / Patterns</option>
-                      <option value="eslint">ESLint</option>
-                      <option value="ai">AI Context Review</option>
-                    </select>
-                  </div>
-
-                  {/* Right: Export & Copy Actions */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button
-                      onClick={handleCopyReport}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        background: 'var(--bg-primary)',
-                        border: '1px solid var(--border-subtle)',
-                        color: copiedReport ? '#4ade80' : 'var(--text-muted)',
-                        padding: '6px 12px',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '0.8rem',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      {copiedReport ? <Check size={13} /> : <Copy size={13} />}
-                      <span>{copiedReport ? 'Report Copied' : 'Copy Markdown'}</span>
-                    </button>
-
-                    <a
-                      href={`/api/reviews/${activeReview.id}/report?format=markdown`}
-                      download={`devguard-report-${activeReview.id}.md`}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        background: 'linear-gradient(135deg, #0284c7, #38bdf8)',
-                        border: 'none',
-                        color: '#ffffff',
-                        padding: '6px 12px',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        textDecoration: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <Download size={13} />
-                      <span>Download .md</span>
-                    </a>
-                  </div>
-                </div>
-
-                {/* Findings List */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  {filteredFindings.length === 0 ? (
-                    <div style={{
-                      background: 'var(--bg-secondary)',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: 'var(--radius-md)',
-                      padding: '40px 20px',
-                      textAlign: 'center',
-                      color: 'var(--text-muted)',
-                    }}>
-                      <ShieldCheck size={36} color="#4ade80" style={{ margin: '0 auto 12px' }} />
-                      <div style={{ fontSize: '1rem', fontWeight: 600, color: '#ffffff', marginBottom: '4px' }}>
-                        No Matching Findings
-                      </div>
-                      <div style={{ fontSize: '0.84rem' }}>
-                        {activeReview.findings.length === 0
-                          ? 'Clean codebase! No static or AI issues were detected.'
-                          : 'Try adjusting your search terms or filters.'}
-                      </div>
-                    </div>
-                  ) : (
-                    filteredFindings.map((finding, idx) => (
-                      <FindingCard key={`${finding.filePath}-${finding.startLine}-${idx}`} finding={finding} />
-                    ))
-                  )}
-                </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <OverviewMetrics review={activeReview} />
+                <FindingsExplorer findings={activeReview.findings} reviewId={activeReview.id} />
               </div>
             ) : (
-              /* Empty state before first review */
+              /* Empty Standby State */
               <div style={{
-                background: 'var(--bg-secondary)',
+                background: 'var(--bg-surface)',
                 border: '1px solid var(--border-subtle)',
                 borderRadius: 'var(--radius-md)',
                 padding: '48px 24px',
                 textAlign: 'center',
                 color: 'var(--text-muted)',
               }}>
-                <FileText size={40} color="var(--primary)" style={{ margin: '0 auto 16px', opacity: 0.8 }} />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#ffffff', marginBottom: '8px' }}>
-                  No Active Review Selected
-                </h3>
-                <p style={{ fontSize: '0.88rem', maxWidth: '440px', margin: '0 auto 20px' }}>
-                  Enter a GitHub repository URL above or choose a sample repository to trigger an automated code review.
-                </p>
+                <Shield size={32} color="var(--text-muted)" style={{ margin: '0 auto 12px', opacity: 0.5 }} />
+                <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                  No Repository Selected
+                </div>
+                <div style={{ fontSize: '12px', maxWidth: '380px', margin: '0 auto' }}>
+                  Enter a target repository above or choose one of the sample targets to begin automated security inspection.
+                </div>
               </div>
             )}
           </div>
 
-          {/* Right Column: History Sidebar */}
-          <HistorySidebar
+          {/* Right Rail: Recent Scans */}
+          <HistoryPanel
             reviews={reviews}
             activeReviewId={activeReview?.id}
             onSelectReview={handleSelectReview}
@@ -325,4 +165,5 @@ export function App() {
     </div>
   );
 }
+
 export default App;

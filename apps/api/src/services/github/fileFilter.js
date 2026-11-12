@@ -92,7 +92,18 @@ export function shouldAnalyzeFile(filePath, size = 0, limits = DEFAULT_LIMITS) {
     return { shouldAnalyze: false, reason: 'Excluded minified asset' };
   }
 
-  // 4. Check extension exclusions
+  // 4. Optional: Check test file exclusions
+  if (limits?.excludeTests) {
+    const isTest =
+      filename.includes('.test.') ||
+      filename.includes('.spec.') ||
+      parts.some((p) => ['tests', 'test', '__tests__', 'spec'].includes(p.toLowerCase()));
+    if (isTest) {
+      return { shouldAnalyze: false, reason: 'Excluded test file per user setting' };
+    }
+  }
+
+  // 5. Check extension exclusions
   const ext = path.extname(filename).toLowerCase();
   if (IGNORED_EXTENSIONS.has(ext)) {
     return { shouldAnalyze: false, reason: `Binary or unsupported extension: ${ext}` };
