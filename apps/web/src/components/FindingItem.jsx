@@ -253,3 +253,4 @@ export function FindingItem({ finding, defaultExpanded = false }) {
     </div>
   );
 }
+

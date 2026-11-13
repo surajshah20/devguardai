@@ -53,3 +53,4 @@ export function generateUnifiedPatch(findings = [], commitSha = 'HEAD') {
   const patches = actionable.map((f) => generatePatchForFinding(f));
   return header.join('\n') + patches.join('\n');
 }
+

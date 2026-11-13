@@ -44,3 +44,4 @@ describe('Patch Generator Service', () => {
     assert.ok(unified.includes('a/src/b.js'));
   });
 });
+

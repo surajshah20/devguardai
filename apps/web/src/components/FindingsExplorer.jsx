@@ -271,3 +271,4 @@ export function FindingsExplorer({ findings = [], reviewId }) {
     </div>
   );
 }
+
